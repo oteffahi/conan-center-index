@@ -1,56 +1,16 @@
-import os
-from contextlib import nullcontext
-
-from conan import ConanFile, conan_version
-from conan.errors import ConanInvalidConfiguration, ConanException
-from conan.tools.android import android_abi
-from conan.tools.apple import XCRun, fix_apple_shared_install_name, is_apple_os, to_apple_arch
-from conan.tools.build import build_jobs, can_run, check_min_cppstd, cross_building, default_cppstd, stdcpp_library, valid_min_cppstd
-from conan.tools.cmake import CMake, CMakeDeps, CMakeToolchain, cmake_layout
-from conan.tools.env import Environment, VirtualBuildEnv, VirtualRunEnv
-from conan.tools.files import (
-    apply_conandata_patches,
-    chdir,
-    collect_libs,
-    copy,
-    download,
-    export_conandata_patches,
-    get,
-    load,
-    mkdir,
-    patch,
-    patches,
-    rename,
-    replace_in_file,
-    rm,
-    rmdir,
-    save,
-    symlinks,
-    unzip,
-)
-from conan.tools.gnu import Autotools, AutotoolsDeps, AutotoolsToolchain, PkgConfig, PkgConfigDeps
-from conan.tools.layout import basic_layout
-from conan.tools.meson import MesonToolchain, Meson
-from conan.tools.microsoft import (
-    MSBuild,
-    MSBuildDeps,
-    MSBuildToolchain,
-    NMakeDeps,
-    NMakeToolchain,
-    VCVars,
-    check_min_vs,
-    is_msvc,
-    is_msvc_static_runtime,
-    msvc_runtime_flag,
-    unix_path,
-    unix_path_package_info_legacy,
-    vs_layout,
-)
-from conan.tools.scm import Version
-from conan.tools.system import package_manager
 import glob
 import os
 import shutil
+
+from conan import ConanFile
+from conan.errors import ConanInvalidConfiguration
+from conan.tools.apple import is_apple_os
+from conan.tools.files import apply_conandata_patches, chdir, copy, export_conandata_patches, get, rm, rmdir
+from conan.tools.gnu import PkgConfigDeps
+from conan.tools.layout import basic_layout
+from conan.tools.meson import MesonToolchain, Meson
+from conan.tools.microsoft import is_msvc, msvc_runtime_flag
+from conan.tools.scm import Version
 
 required_conan_version = ">=1.53.0"
 
@@ -127,7 +87,7 @@ class GStPluginsBaseConan(ConanFile):
 
     def requirements(self):
         self.requires("zlib/1.2.13")
-        self.requires("glib/2.77.1", override=True)
+        self.requires("glib/2.77.2", override=True)
         self.requires("gstreamer/1.22.3")
         if self.options.get_safe("with_libalsa"):
             self.requires("libalsa/1.2.7.2")
@@ -154,7 +114,7 @@ class GStPluginsBaseConan(ConanFile):
         if self.options.with_ogg:
             self.requires("ogg/1.3.5")
         if self.options.with_opus:
-            self.requires("opus/1.3.1")
+            self.requires("opus/1.4")
         if self.options.with_theora:
             self.requires("theora/1.1.1")
         if self.options.with_vorbis:
@@ -175,7 +135,7 @@ class GStPluginsBaseConan(ConanFile):
             raise ConanInvalidConfiguration("OpenGL support with Wayland requires 'with_egl' turned on!")
 
     def build_requirements(self):
-        self.tool_requires("meson/1.2.0")
+        self.tool_requires("meson/1.2.1")
         if not self.conf.get("tools.gnu:pkg_config", default=False, check_type=str):
             self.tool_requires("pkgconf/1.9.5")
         if self.settings.os == "Windows":
