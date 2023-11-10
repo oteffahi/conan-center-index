@@ -1,11 +1,13 @@
-from conan import ConanFile
-from conan.tools.cmake import CMake, CMakeToolchain, cmake_layout, CMakeDeps
-from conan.errors import ConanInvalidConfiguration
-from conan.tools.build import cross_building, check_min_cppstd
-from conan.tools.scm import Version
-from conan.tools.files import rm, get, rmdir, rename, collect_libs, patches, export_conandata_patches, copy, apply_conandata_patches
-from conan.tools.apple import is_apple_os
 import os
+
+from conan import ConanFile
+from conan.errors import ConanInvalidConfiguration
+from conan.tools.apple import is_apple_os
+from conan.tools.build import cross_building, check_min_cppstd
+from conan.tools.cmake import CMake, CMakeToolchain, cmake_layout, CMakeDeps
+from conan.tools.files import rm, get, rmdir, rename, collect_libs, patches, export_conandata_patches, copy, apply_conandata_patches
+from conan.tools.microsoft import is_msvc, is_msvc_static_runtime
+from conan.tools.scm import Version
 
 required_conan_version = ">=1.52.0"
 
@@ -16,7 +18,7 @@ class DiligentCoreConan(ConanFile):
     homepage = "https://github.com/DiligentGraphics/DiligentCore"
     description = "Diligent Core is a modern cross-platfrom low-level graphics API."
     license = "Apache-2.0"
-    topics = ("graphics")
+    topics = ("graphics",)
     settings = "os", "compiler", "build_type", "arch"
     options = {
         "shared": [True, False],
@@ -34,6 +36,7 @@ class DiligentCoreConan(ConanFile):
     def _minimum_compilers_version(self):
         return {
             "Visual Studio": "16",
+            "msvc": "192",
             "gcc": "6",
             "clang": "3.4",
             "apple-clang": "5.1",
@@ -60,17 +63,17 @@ class DiligentCoreConan(ConanFile):
     def export_sources(self):
         copy(self, "CMakeLists.txt", src=self.recipe_folder, dst=self.export_sources_folder, keep_path=False)
         export_conandata_patches(self)
-        
+
     def source(self):
         get(self, **self.conan_data["sources"][self.version],
             destination=os.path.join(self.source_folder, "source_subfolder"), strip_root=True)
 
     def package_id(self):
-        if self.settings.compiler == "Visual Studio":
-            if "MD" in self.settings.compiler.runtime:
-                self.info.settings.compiler.runtime = "MD/MDd"
-            else:
+        if is_msvc(self):
+            if is_msvc_static_runtime(self):
                 self.info.settings.compiler.runtime = "MT/MTd"
+            else:
+                self.info.settings.compiler.runtime = "MD/MDd"
 
     def generate(self):
         tc = CMakeToolchain(self)
@@ -102,30 +105,27 @@ class DiligentCoreConan(ConanFile):
         if self.settings.os == "Windows":
             del self.options.fPIC
 
-    def _patch_sources(self):
-        patches.apply_conandata_patches(self)
-
-    def build_requirements(self):
-        self.tool_requires("cmake/3.24.2")
-
     def requirements(self):
         self.requires("opengl/system")
         if self.settings.os == "Linux":
-            self.requires("wayland/1.21.0")
+            self.requires("wayland/1.22.0")
 
-        self.requires("spirv-cross/1.3.224.0")
-        self.requires("spirv-tools/1.3.224.0")
+        self.requires("spirv-cross/cci.20211113")
+        self.requires("spirv-tools/1.3.243.0")
         if self.options.with_glslang:
-            self.requires("glslang/1.3.224.0")
-        self.requires("vulkan-headers/1.3.224.1")
-        self.requires("vulkan-validationlayers/1.3.224.1")
-        self.requires("volk/1.3.224.1")
-        self.requires("xxhash/0.8.1")
+            self.requires("glslang/11.7.0")
+        self.requires("vulkan-headers/1.3.268.0")
+        self.requires("vulkan-validationlayers/1.3.239.0")
+        self.requires("volk/1.3.268.0")
+        self.requires("xxhash/0.8.2")
 
         if self.settings.os in ["Linux", "FreeBSD"]:
             self.requires("xorg/system")
             if not cross_building(self, skip_x64_x86=True):
-                self.requires("xkbcommon/1.4.1")
+                self.requires("xkbcommon/1.6.0")
+
+    def build_requirements(self):
+        self.tool_requires("cmake/[>=3.24 <4]")
 
     def _diligent_platform(self):
         if self.settings.os == "Windows":
@@ -142,6 +142,9 @@ class DiligentCoreConan(ConanFile):
             return "PLATFORM_EMSCRIPTEN"
         elif self.settings.os == "watchOS":
             return "PLATFORM_TVOS"
+
+    def _patch_sources(self):
+        patches.apply_conandata_patches(self)
 
     def build(self):
         apply_conandata_patches(self)
