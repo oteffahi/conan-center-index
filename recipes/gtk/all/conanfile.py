@@ -211,12 +211,12 @@ class GtkConan(ConanFile):
             self.cpp_info.components["gdk-3.0"].set_property("pkg_config_name", "gdk-3.0")
 
             self.cpp_info.components["gtk+-3.0"].libs = ["gtk-3"]
-            self.cpp_info.components["gtk+-3.0"].requires = ["gdk-3.0", "at-spi2-core::atk"]
+            self.cpp_info.components["gtk+-3.0"].requires = ["gdk-3.0", "at-spi2-core::at-spi2-core"]
             if not is_msvc(self):
                 self.cpp_info.components["gtk+-3.0"].requires.extend(["cairo::cairo", "cairo::cairo-gobject"])
             self.cpp_info.components["gtk+-3.0"].requires.extend(["gdk-pixbuf::gdk-pixbuf", "glib::gio-2.0"])
             if self.settings.os in ["Linux", "FreeBSD"]:
-                self.cpp_info.components["gtk+-3.0"].requires.append("at-spi2-core::atk")
+                self.cpp_info.components["gtk+-3.0"].requires.append("at-spi2-core::at-spi2-core")
             self.cpp_info.components["gtk+-3.0"].requires.append("libepoxy::libepoxy")
             if self.options.with_pango:
                 self.cpp_info.components["gtk+-3.0"].requires.append("pango::pangoft2")
@@ -226,7 +226,7 @@ class GtkConan(ConanFile):
             self.cpp_info.components["gtk+-3.0"].set_property("pkg_config_name", "gtk+-3.0")
 
             self.cpp_info.components["gail-3.0"].libs = ["gailutil-3"]
-            self.cpp_info.components["gail-3.0"].requires = ["gtk+-3.0", "at-spi2-core::atk"]
+            self.cpp_info.components["gail-3.0"].requires = ["gtk+-3.0", "at-spi2-core::at-spi2-core"]
             self.cpp_info.components["gail-3.0"].includedirs = [os.path.join("include", "gail-3.0")]
             self.cpp_info.components["gail-3.0"].set_property("pkg_config_name", "gail-3.0")
         elif self._gtk4:
