@@ -1,27 +1,28 @@
-from conan import ConanFile
-from conan.errors import ConanInvalidConfiguration
-from conan.tools.apple.apple import is_apple_os, to_apple_arch # FIXME: private conan API?
-from conan.tools.build import cross_building
-from conan.tools.files import apply_conandata_patches, collect_libs, copy, get, rm, rmdir
-from conan.tools.gnu import Autotools, AutotoolsDeps, AutotoolsToolchain
-from conan.tools.layout import basic_layout
-from conan.tools.microsoft import is_msvc, is_msvc_static_runtime, msvc_runtime_flag, VCVars
-from conan.tools.scm import Version
 import glob
 import os
 import re
 
-required_conan_version = ">=1.50.0"
+from conan import ConanFile
+from conan.errors import ConanInvalidConfiguration
+from conan.tools.apple.apple import is_apple_os, to_apple_arch
+from conan.tools.build import cross_building
+from conan.tools.files import apply_conandata_patches, collect_libs, copy, get, rm, rmdir, export_conandata_patches
+from conan.tools.gnu import Autotools, AutotoolsDeps, AutotoolsToolchain
+from conan.tools.layout import basic_layout
+from conan.tools.microsoft import is_msvc, is_msvc_static_runtime, msvc_runtime_flag, VCVars, check_min_vs
+
+required_conan_version = ">=1.53.0"
 
 
 class RubyConan(ConanFile):
     name = "ruby"
     description = "The Ruby Programming Language"
     license = "Ruby"
-    topics = ("ruby", "c", "language", "object-oriented", "ruby-language")
-    homepage = "https://www.ruby-lang.org"
     url = "https://github.com/conan-io/conan-center-index"
+    homepage = "https://www.ruby-lang.org"
+    topics = ("c", "language", "object-oriented", "ruby-language")
 
+    package_type = "library"
     settings = "os", "arch", "compiler", "build_type"
     options = {
         "shared": [True, False],
@@ -34,8 +35,6 @@ class RubyConan(ConanFile):
         "with_openssl": True,
     }
 
-    short_paths = True
-
     @property
     def _settings_build(self):
         return getattr(self, "settings_build", self.settings)
@@ -46,14 +45,13 @@ class RubyConan(ConanFile):
 
     @property
     def _msvc_optflag(self):
-        if self.settings.compiler == "Visual Studio" and Version(self.settings.compiler.version) < "14":
-            return "-O2b2xg-"
-        else:
+        if check_min_vs(self, 190, raise_invalid=False):
             return "-O2sy-"
+        else:
+            return "-O2b2xg-"
 
     def export_sources(self):
-        for p in self.conan_data.get("patches", {}).get(self.version, []):
-            copy(self, p["patch_file"], self.recipe_folder, self.export_sources_folder)
+        export_conandata_patches(self)
 
     def config_options(self):
         if self.settings.os == "Windows":
@@ -61,32 +59,26 @@ class RubyConan(ConanFile):
 
     def configure(self):
         if self.options.shared:
-            del self.options.fPIC
-        try:
-            del self.settings.compiler.libcxx
-        except Exception:
-            pass
-        try:
-            del self.settings.compiler.cppstd
-        except Exception:
-            pass
-
-    def requirements(self):
-        self.requires("zlib/1.2.12")
-        self.requires("gmp/6.1.2")
-        if self.options.with_openssl:
-            self.requires("openssl/1.1.1q")
-
-    def validate(self):
-        if is_msvc(self) and is_msvc_static_runtime(self):
-            # see https://github.com/conan-io/conan-center-index/pull/8644#issuecomment-1068974098
-            raise ConanInvalidConfiguration("VS static runtime is not supported")
+            self.options.rm_safe("fPIC")
+        self.settings.rm_safe("compiler.libcxx")
+        self.settings.rm_safe("compiler.cppstd")
 
     def layout(self):
         basic_layout(self, src_folder="src")
 
+    def requirements(self):
+        self.requires("zlib/[>=1.2.11 <2]")
+        self.requires("gmp/6.3.0")
+        if self.options.with_openssl:
+            self.requires("openssl/[>=1.1 <4]")
+
+    def validate(self):
+        if is_msvc_static_runtime(self):
+            # see https://github.com/conan-io/conan-center-index/pull/8644#issuecomment-1068974098
+            raise ConanInvalidConfiguration("VS static runtime is not supported")
+
     def source(self):
-        get(self, **self.conan_data["sources"][self.version], destination=self.source_folder, strip_root=True)
+        get(self, **self.conan_data["sources"][self.version], strip_root=True)
 
     def generate(self):
         td = AutotoolsDeps(self)
@@ -106,10 +98,8 @@ class RubyConan(ConanFile):
         if self.options.shared and not is_msvc(self):
             # Force fPIC
             tc.fpic = True
-            if "--enable-shared" not in tc.configure_args:
-                tc.configure_args.append("--enable-shared")
 
-        if cross_building(self) and is_apple_os(self.settings.os):
+        if cross_building(self) and is_apple_os(self):
             apple_arch = to_apple_arch(self.settings.arch)
             if apple_arch:
                 tc.configure_args.append(f"--with-arch={apple_arch}")
@@ -137,8 +127,7 @@ class RubyConan(ConanFile):
         if is_msvc(self):
             self.conf["tools.gnu:make_program"] = "nmake"
             build_script_folder = os.path.join(build_script_folder, "win32")
-
-            if "TMP" in os.environ:  # workaround for TMP in CCI containing both forward and back slashes
+            if "TMP" in os.environ:  # workaround for TMP in CCI containing both forward and backslashes
                 os.environ["TMP"] = os.environ["TMP"].replace("/", "\\")
 
         autotools.configure(build_script_folder=build_script_folder)
@@ -157,12 +146,13 @@ class RubyConan(ConanFile):
 
         rmdir(self, os.path.join(self.package_folder, "share"))
         rmdir(self, os.path.join(self.package_folder, "lib", "pkgconfig"))
-        rm(self, "*.pdb", os.path.join(self.package_folder, "lib"))
+        rm(self, "*.pdb", self.package_folder, recursive=True)
 
     def package_info(self):
-        binpath = os.path.join(self.package_folder, "bin")
-        self.output.info(f"Adding to PATH: {binpath}")
-        self.env_info.PATH.append(binpath)
+        self.cpp_info.set_property("cmake_find_mode", "both")
+        self.cpp_info.set_property("cmake_file_name", "Ruby")
+        self.cpp_info.set_property("cmake_target_name", "Ruby::Ruby")
+        self.cpp_info.set_property("pkg_config_name", "ruby")
 
         config_file = glob.glob(os.path.join(self.package_folder, "include", "**", "ruby", "config.h"), recursive=True)[0]
         self.cpp_info.includedirs = [
@@ -172,10 +162,10 @@ class RubyConan(ConanFile):
         self.cpp_info.libs = collect_libs(self)
         if is_msvc(self):
             if self.options.shared:
-                self.cpp_info.libs = list(filter(lambda l: not l.endswith("-static"), self.cpp_info.libs))
+                self.cpp_info.libs = [lib for lib in self.cpp_info.libs if not lib.endswith("-static")]
             else:
-                self.cpp_info.libs = list(filter(lambda l: l.endswith("-static"), self.cpp_info.libs))
-        if self.settings.os in ("FreeBSD", "Linux"):
+                self.cpp_info.libs = [lib for lib in self.cpp_info.libs if lib.endswith("-static")]
+        if self.settings.os in ["FreeBSD", "Linux"]:
             self.cpp_info.system_libs = ["dl", "pthread", "rt", "m", "crypt"]
         elif self.settings.os == "Windows":
             self.cpp_info.system_libs = self._windows_system_libs
@@ -185,10 +175,6 @@ class RubyConan(ConanFile):
         if is_apple_os(self.settings.os):
             self.cpp_info.frameworks = ["CoreFoundation"]
 
-        self.cpp_info.set_property("cmake_find_mode", "both")
-        self.cpp_info.set_property("cmake_file_name", "Ruby")
-        self.cpp_info.set_property("cmake_target_name", "Ruby::Ruby")
-        self.cpp_info.set_property("pkg_config_name", "ruby")
         major, minor, _ = str(self.version).split(".")
         self.cpp_info.set_property("pkg_config_aliases", [f"ruby-{major}.{minor}"])
 
@@ -201,3 +187,5 @@ class RubyConan(ConanFile):
         # TODO: to remove in conan v2
         self.cpp_info.names["cmake_find_package"] = "Ruby"
         self.cpp_info.names["cmake_find_package_multi"] = "Ruby"
+        binpath = os.path.join(self.package_folder, "bin")
+        self.env_info.PATH.append(binpath)
