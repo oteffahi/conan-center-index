@@ -5,7 +5,7 @@ from conan.errors import ConanInvalidConfiguration
 from conan.tools.apple import is_apple_os
 from conan.tools.build import cross_building, check_min_cppstd
 from conan.tools.cmake import CMake, CMakeToolchain, cmake_layout, CMakeDeps
-from conan.tools.files import rm, get, rmdir, rename, collect_libs, export_conandata_patches, copy, apply_conandata_patches, replace_in_file
+from conan.tools.files import rm, get, rmdir, collect_libs, export_conandata_patches, copy, apply_conandata_patches, replace_in_file
 from conan.tools.microsoft import is_msvc, is_msvc_static_runtime
 from conan.tools.scm import Version
 
@@ -16,7 +16,7 @@ class DiligentCoreConan(ConanFile):
     name = "diligent-core"
     url = "https://github.com/conan-io/conan-center-index"
     homepage = "https://github.com/DiligentGraphics/DiligentCore"
-    description = "Diligent Core is a modern cross-platfrom low-level graphics API."
+    description = "Diligent Core is a modern cross-platform low-level graphics API."
     license = "Apache-2.0"
     topics = ("graphics",)
     settings = "os", "compiler", "build_type", "arch"
@@ -28,7 +28,7 @@ class DiligentCoreConan(ConanFile):
     default_options = {
         "shared": False	,
         "fPIC": True,
-        "with_glslang": True
+        "with_glslang": False  # FIXME: fails with a compilation error on newer versions of glslang
     }
     short_paths = True
 
@@ -159,8 +159,12 @@ class DiligentCoreConan(ConanFile):
     def package(self):
         cmake = CMake(self)
         cmake.install()
-        rename(self, os.path.join(self.package_folder, "include", "source_subfolder"),
-               os.path.join(self.package_folder, "include", "DiligentCore"))
+
+        os.rename(os.path.join(self.package_folder, "include"),
+                  os.path.join(self.package_folder, "DiligentCore"))
+        os.mkdir(os.path.join(self.package_folder, "include"))
+        os.rename(os.path.join(self.package_folder, "DiligentCore"),
+                  os.path.join(self.package_folder, "include", "DiligentCore"))
 
         rmdir(self, os.path.join(self.package_folder, "Licenses"))
         rmdir(self, os.path.join(self.package_folder, "lib"))
@@ -168,20 +172,20 @@ class DiligentCoreConan(ConanFile):
         copy(self, "License.txt", dst=os.path.join(self.package_folder, "licenses"), src=self.package_folder)
 
         if self.options.shared:
-            copy(self, pattern="*.dylib", dst=os.path.join(self.package_folder, "lib"), src=self.build_folder, keep_path=False)
-            copy(self, pattern="*.so", dst=os.path.join(self.package_folder, "lib"), src=self.build_folder, keep_path=False)
-            copy(self, pattern="*.dll", dst=os.path.join(self.package_folder, "bin"), src=self.build_folder, keep_path=False)
+            copy(self, "*.dylib", dst=os.path.join(self.package_folder, "lib"), src=self.build_folder, keep_path=False)
+            copy(self, "*.so", dst=os.path.join(self.package_folder, "lib"), src=self.build_folder, keep_path=False)
+            copy(self, "*.dll", dst=os.path.join(self.package_folder, "bin"), src=self.build_folder, keep_path=False)
             rm(self, os.path.join(self.package_folder, "lib"), "*.a", recursive=True)
             if self.settings.os != "Windows":
                 rm(self, os.path.join(self.package_folder, "lib"), "*.lib", recursive=True)
         else:
-            copy(self, pattern="*.a",   dst=os.path.join(self.package_folder, "lib"), src=self.build_folder, keep_path=False)
-            copy(self, pattern="*.lib", dst=os.path.join(self.package_folder, "lib"), src=self.build_folder, keep_path=False)
+            copy(self, "*.a",   dst=os.path.join(self.package_folder, "lib"), src=self.build_folder, keep_path=False)
+            copy(self, "*.lib", dst=os.path.join(self.package_folder, "lib"), src=self.build_folder, keep_path=False)
             rm(self, os.path.join(self.package_folder, "lib"), "*.dylib", recursive=True)
             rm(self, os.path.join(self.package_folder, "lib"), "*.so", recursive=True)
             rm(self, os.path.join(self.package_folder, "lib"), "*.dll", recursive=True)
 
-        copy(self, pattern="*.fxh", dst=os.path.join(self.package_folder, "res"), src=self.source_folder, keep_path=False)
+        copy(self, "*.fxh", dst=os.path.join(self.package_folder, "res"), src=self.source_folder, keep_path=False)
         copy(self, "File2String*",  dst=os.path.join(self.package_folder, "bin"), src=self.source_folder, keep_path=False)
         rm(self, "*.pdb", self.package_folder, recursive=True)
         # MinGw creates many invalid files, called objects.a, remove them here:
@@ -189,6 +193,7 @@ class DiligentCoreConan(ConanFile):
 
     def package_info(self):
         self.cpp_info.libs = collect_libs(self)
+        self.cpp_info.resdirs = ["res"]
 
         # included as discussed here https://github.com/conan-io/conan-center-index/pull/10732#issuecomment-1123596308
         self.cpp_info.includedirs += [
@@ -224,12 +229,12 @@ class DiligentCoreConan(ConanFile):
             self.cpp_info.includedirs.append(os.path.join("include", "DiligentCore", "Graphics", "GraphicsEngineD3D11", "interface"))
             self.cpp_info.includedirs.append(os.path.join("include", "DiligentCore", "Graphics", "GraphicsEngineD3D12", "interface"))
 
-        self.cpp_info.defines.append("SPIRV_CROSS_NAMESPACE_OVERRIDE={}".format(self.options["spirv-cross"].namespace))
+        self.cpp_info.defines.append("SPIRV_CROSS_NAMESPACE_OVERRIDE={}".format(self.dependencies["spirv-cross"].options.namespace))
         self.cpp_info.defines.append("{}=1".format(self._diligent_platform()))
 
         if self.settings.os in ["Macos", "Linux"]:
             self.cpp_info.system_libs = ["dl", "pthread"]
         if self.settings.os == "Macos":
-            self.cpp_info.frameworks = ["CoreFoundation", 'Cocoa', 'AppKit']
+            self.cpp_info.frameworks = ["CoreFoundation", "Cocoa", "AppKit"]
         if self.settings.os == "Windows":
             self.cpp_info.system_libs = ["dxgi", "shlwapi"]
