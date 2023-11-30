@@ -5,7 +5,7 @@ from conan.errors import ConanInvalidConfiguration
 from conan.tools.apple import is_apple_os
 from conan.tools.build import cross_building, check_min_cppstd
 from conan.tools.cmake import CMake, CMakeToolchain, cmake_layout, CMakeDeps
-from conan.tools.files import rm, get, rmdir, rename, collect_libs, patches, export_conandata_patches, copy, apply_conandata_patches
+from conan.tools.files import rm, get, rmdir, rename, collect_libs, export_conandata_patches, copy, apply_conandata_patches, replace_in_file
 from conan.tools.microsoft import is_msvc, is_msvc_static_runtime
 from conan.tools.scm import Version
 
@@ -44,58 +44,24 @@ class DiligentCoreConan(ConanFile):
 
     @property
     def _minimum_cpp_standard(self):
-        return 14
-
-    def validate(self):
-        if self.settings.compiler.get_safe("cppstd"):
-            check_min_cppstd(self, self._minimum_cpp_standard)
-        min_version = self._minimum_compilers_version.get(str(self.settings.compiler))
-        if not min_version:
-            self.output.warn("{} recipe lacks information about the {} compiler support.".format(
-                self.name, self.settings.compiler))
-        else:
-            if Version(self.settings.compiler.version) < min_version:
-                raise ConanInvalidConfiguration("{} requires C++{} support. The current compiler {} {} does not support it.".format(
-                    self.name, self._minimum_cpp_standard, self.settings.compiler, self.settings.compiler.version))
-        if self.settings.compiler == "Visual Studio" and "MT" in self.settings.compiler.runtime:
-            raise ConanInvalidConfiguration("Visual Studio build with MT runtime is not supported")
+        return 17
 
     def export_sources(self):
-        copy(self, "CMakeLists.txt", src=self.recipe_folder, dst=self.export_sources_folder, keep_path=False)
+        copy(self, "conan_deps.cmake", self.recipe_folder, os.path.join(self.export_sources_folder, "src"))
         export_conandata_patches(self)
 
     def source(self):
-        get(self, **self.conan_data["sources"][self.version],
-            destination=os.path.join(self.source_folder, "source_subfolder"), strip_root=True)
+        get(self, **self.conan_data["sources"][self.version], strip_root=True)
 
     def package_id(self):
-        if is_msvc(self):
-            if is_msvc_static_runtime(self):
+        if is_msvc(self.info):
+            if is_msvc_static_runtime(self.info):
                 self.info.settings.compiler.runtime = "MT/MTd"
             else:
                 self.info.settings.compiler.runtime = "MD/MDd"
 
-    def generate(self):
-        tc = CMakeToolchain(self)
-        tc.variables["DILIGENT_BUILD_SAMPLES"] = False
-        tc.variables["DILIGENT_NO_FORMAT_VALIDATION"] = True
-        tc.variables["DILIGENT_BUILD_TESTS"] = False
-        tc.variables["DILIGENT_NO_DXC"] = True
-        tc.variables["DILIGENT_NO_GLSLANG"] = not self.options.with_glslang
-        tc.variables["SPIRV_CROSS_NAMESPACE_OVERRIDE"] = self.options["spirv-cross"].namespace
-        tc.variables["BUILD_SHARED_LIBS"] = False
-        tc.variables["DILIGENT_CLANG_COMPILE_OPTIONS"] = ""
-        tc.variables["DILIGENT_MSVC_COMPILE_OPTIONS"] = ""
-        tc.variables["ENABLE_RTTI"] = True
-        tc.variables["ENABLE_EXCEPTIONS"] = True
-        tc.variables[self._diligent_platform()] = True
-        tc.generate()
-
-        deps = CMakeDeps(self)
-        deps.generate()
-
     def layout(self):
-        cmake_layout(self)
+        cmake_layout(self, src_folder="src")
 
     def configure(self):
         if self.options.shared:
@@ -108,6 +74,7 @@ class DiligentCoreConan(ConanFile):
     def requirements(self):
         vulkan_sdk_version = "1.3.268.0"
         self.requires(f"spirv-cross/{vulkan_sdk_version}")
+        self.requires(f"spirv-headers/{vulkan_sdk_version}")
         self.requires(f"spirv-tools/{vulkan_sdk_version}")
         if self.options.with_glslang:
             self.requires(f"glslang/{vulkan_sdk_version}")
@@ -122,6 +89,16 @@ class DiligentCoreConan(ConanFile):
             self.requires("xorg/system")
             if not cross_building(self, skip_x64_x86=True):
                 self.requires("xkbcommon/1.6.0")
+
+    def validate(self):
+        if self.settings.compiler.get_safe("cppstd"):
+            check_min_cppstd(self, self._minimum_cpp_standard)
+        min_version = self._minimum_compilers_version.get(str(self.settings.compiler))
+        if min_version and Version(self.settings.compiler.version) < min_version:
+            raise ConanInvalidConfiguration("{} requires C++{} support. The current compiler {} {} does not support it.".format(
+                self.name, self._minimum_cpp_standard, self.settings.compiler, self.settings.compiler.version))
+        if is_msvc_static_runtime(self):
+            raise ConanInvalidConfiguration("Visual Studio build with MT runtime is not supported")
 
     def build_requirements(self):
         self.tool_requires("cmake/[>=3.24 <4]")
@@ -142,11 +119,39 @@ class DiligentCoreConan(ConanFile):
         elif self.settings.os == "watchOS":
             return "PLATFORM_TVOS"
 
+    def generate(self):
+        tc = CMakeToolchain(self)
+        tc.variables["DILIGENT_BUILD_SAMPLES"] = False
+        tc.variables["DILIGENT_NO_FORMAT_VALIDATION"] = True
+        tc.variables["DILIGENT_BUILD_TESTS"] = False
+        tc.variables["DILIGENT_NO_DXC"] = True
+        tc.variables["DILIGENT_NO_GLSLANG"] = not self.options.with_glslang
+        tc.variables["SPIRV_CROSS_NAMESPACE_OVERRIDE"] = self.dependencies["spirv-cross"].options.namespace
+        tc.variables["BUILD_SHARED_LIBS"] = False
+        tc.variables["DILIGENT_CLANG_COMPILE_OPTIONS"] = ""
+        tc.variables["DILIGENT_MSVC_COMPILE_OPTIONS"] = ""
+        tc.variables["ENABLE_RTTI"] = True
+        tc.variables["ENABLE_EXCEPTIONS"] = True
+        tc.variables[self._diligent_platform()] = True
+        tc.generate()
+
+        deps = CMakeDeps(self)
+        deps.generate()
+
     def _patch_sources(self):
-        patches.apply_conandata_patches(self)
+        apply_conandata_patches(self)
+        replace_in_file(self, os.path.join(self.source_folder, "CMakeLists.txt"),
+                        "project(DiligentCore)",
+                        "project(DiligentCore)\n\ninclude(conan_deps.cmake)")
+        # Let Conan set the C++ standard
+        if Version(self.version) >= "2.5.4":
+            build_utils = os.path.join(self.source_folder, "BuildTools", "CMake", "BuildUtils.cmake")
+        else:
+            build_utils = os.path.join(self.source_folder, "BuildUtils.cmake")
+        replace_in_file(self, build_utils, "CXX_STANDARD 14", "")
 
     def build(self):
-        apply_conandata_patches(self)
+        self._patch_sources()
         cmake = CMake(self)
         cmake.configure()
         cmake.build()
@@ -154,13 +159,13 @@ class DiligentCoreConan(ConanFile):
     def package(self):
         cmake = CMake(self)
         cmake.install()
-        rename(self, src=os.path.join(self.package_folder, "include", "source_subfolder"),
-        dst=os.path.join(self.package_folder, "include", "DiligentCore"))
+        rename(self, os.path.join(self.package_folder, "include", "source_subfolder"),
+               os.path.join(self.package_folder, "include", "DiligentCore"))
 
         rmdir(self, os.path.join(self.package_folder, "Licenses"))
         rmdir(self, os.path.join(self.package_folder, "lib"))
         rmdir(self, os.path.join(self.package_folder, "bin"))
-        copy(self, "License.txt", dst=os.path.join(self.package_folder, "licenses"), src=os.path.join(self.package_folder, self.source_folder, "source_subfolder"))
+        copy(self, "License.txt", dst=os.path.join(self.package_folder, "licenses"), src=self.package_folder)
 
         if self.options.shared:
             copy(self, pattern="*.dylib", dst=os.path.join(self.package_folder, "lib"), src=self.build_folder, keep_path=False)

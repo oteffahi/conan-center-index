@@ -1,7 +1,7 @@
 sources:
-  "2.5.4":
-    url: "https://github.com/DiligentGraphics/DiligentCore/archive/refs/tags/v2.5.4.tar.gz"
-    sha256: "4b487fdd6cc0044023389e19c4448706ea8f73b1b3e94c1e8e55df743e163d2d"
+#  "2.5.4":
+#    url: "https://github.com/DiligentGraphics/DiligentCore/archive/refs/tags/v2.5.4.tar.gz"
+#    sha256: "4b487fdd6cc0044023389e19c4448706ea8f73b1b3e94c1e8e55df743e163d2d"
   "2.5.2":
     url: "https://github.com/DiligentGraphics/DiligentCore/archive/refs/tags/v2.5.2.tar.gz"
     sha256: "6767a6b4f5750c3801ccdba8f7793ac79fa429c8d4518d79717f68ef9dd0ed2a"
