@@ -68,7 +68,7 @@ class NetcdfConan(ConanFile):
                 # So we will require the older hdf5 to keep the older behaviour.
                 self.requires("hdf5/1.12.0")
             else:
-                self.requires("hdf5/1.14.1")
+                self.requires("hdf5/1.14.3")
 
         if self.options.dap or self.options.byterange:
             self.requires("libcurl/[>=7.78.0 <9]")
