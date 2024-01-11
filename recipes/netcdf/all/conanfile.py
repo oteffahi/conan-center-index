@@ -82,7 +82,7 @@ class NetcdfConan(ConanFile):
                 self.requires("zlib/[>=1.2.11 <2]")
 
         if self.options.with_hdf4:
-            self.requires("hdf4/4.2.15")
+            self.requires("hdf4/4.2.16-2")
 
         if self.options.dap or self.options.byterange:
             self.requires("libcurl/[>=7.78.0 <9]")
