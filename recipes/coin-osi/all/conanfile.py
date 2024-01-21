@@ -5,7 +5,7 @@ from conan.errors import ConanInvalidConfiguration
 from conan.tools.apple import fix_apple_shared_install_name
 from conan.tools.build import cross_building
 from conan.tools.env import VirtualBuildEnv
-from conan.tools.files import apply_conandata_patches, copy, export_conandata_patches, get, rename, rm, rmdir, chdir, save
+from conan.tools.files import apply_conandata_patches, copy, export_conandata_patches, get, rename, rm, rmdir, chdir, save, replace_in_file
 from conan.tools.gnu import Autotools, AutotoolsToolchain, PkgConfigDeps
 from conan.tools.layout import basic_layout
 from conan.tools.microsoft import check_min_vs, is_msvc, msvc_runtime_flag
@@ -75,8 +75,8 @@ class CoinOsiConan(ConanFile):
 
     def source(self):
         get(self, **self.conan_data["sources"][self.version], strip_root=True)
-        get(self, url="https://github.com/coin-or-tools/BuildTools/archive/refs/tags/releases/0.8.10.tar.gz",
-            sha256="6b149acb304bf6fa0d8c468a03b1f67baaf981916b016bc32db018fa512e4f88",
+        get(self, url="https://github.com/coin-or-tools/BuildTools/archive/refs/tags/releases/0.8.11.tar.gz",
+            sha256="ec4cec2455537b4911b1ce223f1f946f5afa2ea6264fc96ae4da6bea63af34dc",
             destination=os.path.join(self.source_folder, "BuildTools"), strip_root=True)
 
     def generate(self):
