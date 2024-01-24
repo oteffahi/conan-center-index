@@ -136,18 +136,11 @@ class LiquidDspConan(ConanFile):
 
     def _gen_link_library(self):
         if is_msvc(self) and self.options.shared:
+            self.run("cmd /c generate_link_library.bat")
             with chdir(self, self.source_folder):
-                stdout = StringIO()
-                self.run("dumpbin -EXPORTS libliquid.dll", stdout)
-                lines = stdout.getvalue().splitlines()
-                with open("libliquid.def", "w", encoding="ascii") as f:
-                    f.write("EXPORTS\n")
-                    for line in lines[19:]:
-                        tokens = line.split()
-                        if len(tokens) > 3:
-                            f.write(tokens[3] + "\n")
-                arch = "X86" if self.settings.arch == "x86" else "X64"
-                self.run(f"lib /def:libliquid.def /out:libliquid.lib /machine:{arch}")
+                self.run("ar /def:libliquid.def /out:libliquid.lib /machine:{}".format(
+                    "X86" if self.settings.arch == "x86" else "X64")
+                )
 
     def _rename_libraries(self):
         with chdir(self, self.source_folder):
