@@ -59,14 +59,17 @@ class PangommConan(ConanFile):
         basic_layout(self, src_folder="src")
 
     def requirements(self):
-        self.requires("pango/1.50.14", transitive_headers=True, transitive_libs=True)
+        self.requires("pango/1.51.0", transitive_headers=True, transitive_libs=True)
 
         if self._is_2_48_api:
             self.requires("glibmm/2.75.0", transitive_headers=True, transitive_libs=True)
-            self.requires("cairomm/1.16.1", transitive_headers=True, transitive_libs=True)
+            self.requires("cairomm/1.18.0", transitive_headers=True, transitive_libs=True)
         elif self._is_1_4_api:
             self.requires("glibmm/2.66.4", transitive_headers=True, transitive_libs=True)
             self.requires("cairomm/1.14.3", transitive_headers=True, transitive_libs=True)
+
+        self.requires("glib/2.78.3", override=True)
+        self.requires("fontconfig/2.15.0", override=True)
 
     def validate(self):
         if hasattr(self, "settings_build") and cross_building(self):
@@ -79,9 +82,9 @@ class PangommConan(ConanFile):
                 check_min_cppstd(self, 11)
 
     def build_requirements(self):
-        self.tool_requires("meson/1.2.3")
+        self.tool_requires("meson/1.3.1")
         if not self.conf.get("tools.gnu:pkg_config", default=False, check_type=str):
-            self.tool_requires("pkgconf/2.0.3")
+            self.tool_requires("pkgconf/2.1.0")
 
     def source(self):
         get(self, **self.conan_data["sources"][self.version], strip_root=True)
