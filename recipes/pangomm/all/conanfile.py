@@ -60,16 +60,12 @@ class PangommConan(ConanFile):
 
     def requirements(self):
         self.requires("pango/1.51.0", transitive_headers=True, transitive_libs=True)
-
         if self._is_2_48_api:
             self.requires("glibmm/2.75.0", transitive_headers=True, transitive_libs=True)
             self.requires("cairomm/1.18.0", transitive_headers=True, transitive_libs=True)
         elif self._is_1_4_api:
             self.requires("glibmm/2.66.4", transitive_headers=True, transitive_libs=True)
             self.requires("cairomm/1.14.3", transitive_headers=True, transitive_libs=True)
-
-        self.requires("glib/2.78.3", override=True)
-        self.requires("fontconfig/2.15.0", override=True)
 
     def validate(self):
         if hasattr(self, "settings_build") and cross_building(self):
