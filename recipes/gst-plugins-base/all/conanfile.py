@@ -103,7 +103,7 @@ class GStPluginsBaseConan(ConanFile):
             if self.options.with_graphene:
                 self.requires("graphene/1.10.8")
             if self.options.with_libpng:
-                self.requires("libpng/1.6.40")
+                self.requires("libpng/[>=1.6 <2]")
             if self.options.with_libjpeg == "libjpeg":
                 self.requires("libjpeg/9e")
             elif self.options.with_libjpeg == "libjpeg-turbo":
@@ -133,7 +133,7 @@ class GStPluginsBaseConan(ConanFile):
             raise ConanInvalidConfiguration("OpenGL support with Wayland requires 'with_egl' turned on!")
 
     def build_requirements(self):
-        self.tool_requires("meson/1.3.1")
+        self.tool_requires("meson/1.4.0")
         if not self.conf.get("tools.gnu:pkg_config", default=False, check_type=str):
             self.tool_requires("pkgconf/2.1.0")
         if self.settings.os == "Windows":
