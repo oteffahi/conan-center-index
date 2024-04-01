@@ -37,6 +37,8 @@ class CeressolverConan(ConanFile):
         "use_CXX11_threads": [True, False],
         "use_CXX11": [True, False],
         "use_schur_specializations": [True, False],
+        "use_lapack": [True, False],
+        "use_suitesparse": [True, False],
     }
     default_options = {
         "shared": False,
@@ -49,6 +51,8 @@ class CeressolverConan(ConanFile):
         "use_CXX11_threads": False,
         "use_CXX11": False,
         "use_schur_specializations": True,
+        "use_lapack": True,
+        "use_suitesparse": True,
     }
 
     @property
@@ -100,9 +104,12 @@ class CeressolverConan(ConanFile):
 
     def requirements(self):
         self.requires("eigen/3.4.0", transitive_headers=True)
-        self.requires("suitesparse-spqr/4.3.3")
+        if self.options.use_suitesparse:
+            self.requires("suitesparse-spqr/4.3.3")
+        if self.options.use_lapack:
+            self.requires("openblas/0.3.26")
         if self.options.use_glog:
-            self.requires("glog/0.6.0", transitive_headers=True, transitive_libs=True)
+            self.requires("glog/0.7.0", transitive_headers=True, transitive_libs=True)
         if self.options.get_safe("use_TBB"):
             self.requires("onetbb/2020.3")
 
@@ -130,8 +137,8 @@ class CeressolverConan(ConanFile):
         tc = CMakeToolchain(self)
         tc.variables["MINIGLOG"] = not self.options.use_glog
         tc.variables["GFLAGS"] = False # useless for the lib itself, gflags is not a direct dependency
-        tc.variables["SUITESPARSE"] = True
-        tc.variables["LAPACK"] = False
+        tc.variables["SUITESPARSE"] = self.options.use_suitesparse
+        tc.variables["LAPACK"] = self.options.use_lapack
         tc.variables["SCHUR_SPECIALIZATIONS"] = self.options.use_schur_specializations
         tc.variables["CUSTOM_BLAS"] = self.options.use_custom_blas
         tc.variables["EIGENSPARSE"] = self.options.use_eigen_sparse
@@ -222,7 +229,11 @@ class CeressolverConan(ConanFile):
         elif is_apple_os(self):
             if Version(self.version) >= "2":
                 self.cpp_info.components["ceres"].frameworks.append("Accelerate")
-        self.cpp_info.components["ceres"].requires = ["eigen::eigen", "suitesparse-spqr::suitesparse-spqr"]
+        self.cpp_info.components["ceres"].requires = ["eigen::eigen"]
+        if self.options.use_suitesparse:
+            self.cpp_info.components["ceres"].requires.append("suitesparse-spqr::suitesparse-spqr")
+        if self.options.use_lapack:
+            self.cpp_info.components["ceres"].requires.append("openblas::openblas")
         if self.options.use_glog:
             self.cpp_info.components["ceres"].requires.append("glog::glog")
         if self.options.get_safe("use_TBB"):
