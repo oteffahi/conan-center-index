@@ -6,7 +6,7 @@ from conan.errors import ConanInvalidConfiguration
 from conan.tools.apple import is_apple_os
 from conan.tools.build import check_min_cppstd, stdcpp_library
 from conan.tools.cmake import CMake, CMakeDeps, CMakeToolchain, cmake_layout
-from conan.tools.files import apply_conandata_patches, copy, export_conandata_patches, get, rmdir, save
+from conan.tools.files import apply_conandata_patches, copy, export_conandata_patches, get, rmdir, save, rm
 from conan.tools.microsoft import is_msvc, is_msvc_static_runtime
 from conan.tools.scm import Version
 
@@ -104,8 +104,11 @@ class CeressolverConan(ConanFile):
 
     def requirements(self):
         self.requires("eigen/3.4.0", transitive_headers=True)
+        self.requires("metis/5.2.1")
         if self.options.use_suitesparse:
             self.requires("suitesparse-spqr/4.3.3")
+            self.requires("suitesparse-cholmod/5.2.1")
+        if self.options.use_lapack:
             self.requires("openblas/0.3.26")
         if self.options.use_glog:
             self.requires("glog/0.7.0", transitive_headers=True, transitive_libs=True)
@@ -137,14 +140,21 @@ class CeressolverConan(ConanFile):
         tc.variables["MINIGLOG"] = not self.options.use_glog
         tc.variables["GFLAGS"] = False # useless for the lib itself, gflags is not a direct dependency
         tc.variables["SUITESPARSE"] = self.options.use_suitesparse
+        tc.variables["SuiteSparse_FOUND"] = True  # bypass unnecessary checks
         tc.variables["LAPACK"] = self.options.use_lapack
         tc.variables["SCHUR_SPECIALIZATIONS"] = self.options.use_schur_specializations
         tc.variables["CUSTOM_BLAS"] = self.options.use_custom_blas
         tc.variables["EIGENSPARSE"] = self.options.use_eigen_sparse
+        tc.variables["EIGENMETIS"] = True
         tc.variables["BUILD_TESTING"] = False
         tc.variables["BUILD_DOCUMENTATION"] = False
         tc.variables["BUILD_EXAMPLES"] = False
         tc.variables["BUILD_BENCHMARKS"] = False
+
+        # FIXME:
+        # -- Enabling CERES_NO_SUITESPARSE in Ceres config.h
+        # -- Enabling CERES_NO_CHOLMOD_PARTITION in Ceres config.h
+        # -- Enabling CERES_NO_EIGEN_METIS in Ceres config.h
 
         ceres_version = Version(self.version)
         if ceres_version >= "2.2.0":
@@ -173,10 +183,18 @@ class CeressolverConan(ConanFile):
             tc.variables["IOS_DEPLOYMENT_TARGET"] = self.settings.os.version
         tc.generate()
 
-        CMakeDeps(self).generate()
+        deps = CMakeDeps(self)
+        deps.set_property("metis", "cmake_file_name", "METIS")
+        deps.set_property("metis", "cmake_target_name", "METIS::METIS")
+        deps.generate()
+
+    def _patch_sources(self):
+        apply_conandata_patches(self)
+        # Remove as it messes up the targets created by Conan
+        rm(self, "FindSuiteSparse.cmake", os.path.join(self.source_folder, "cmake"))
 
     def build(self):
-        apply_conandata_patches(self)
+        self._patch_sources()
         cmake = CMake(self)
         cmake.configure()
         cmake.build()
@@ -228,9 +246,10 @@ class CeressolverConan(ConanFile):
         elif is_apple_os(self):
             if Version(self.version) >= "2":
                 self.cpp_info.components["ceres"].frameworks.append("Accelerate")
-        self.cpp_info.components["ceres"].requires = ["eigen::eigen"]
+        self.cpp_info.components["ceres"].requires = ["eigen::eigen", "metis::metis"]
         if self.options.use_suitesparse:
             self.cpp_info.components["ceres"].requires.append("suitesparse-spqr::suitesparse-spqr")
+            self.cpp_info.components["ceres"].requires.append("suitesparse-cholmod::suitesparse-cholmod")
         if self.options.use_lapack:
             self.cpp_info.components["ceres"].requires.append("openblas::openblas")
         if self.options.use_glog:
