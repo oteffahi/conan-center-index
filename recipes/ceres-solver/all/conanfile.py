@@ -100,6 +100,7 @@ class CeressolverConan(ConanFile):
 
     def requirements(self):
         self.requires("eigen/3.4.0", transitive_headers=True)
+        self.requires("suitesparse-spqr/4.3.3")
         if self.options.use_glog:
             self.requires("glog/0.6.0", transitive_headers=True, transitive_libs=True)
         if self.options.get_safe("use_TBB"):
@@ -129,7 +130,7 @@ class CeressolverConan(ConanFile):
         tc = CMakeToolchain(self)
         tc.variables["MINIGLOG"] = not self.options.use_glog
         tc.variables["GFLAGS"] = False # useless for the lib itself, gflags is not a direct dependency
-        tc.variables["SUITESPARSE"] = False
+        tc.variables["SUITESPARSE"] = True
         tc.variables["LAPACK"] = False
         tc.variables["SCHUR_SPECIALIZATIONS"] = self.options.use_schur_specializations
         tc.variables["CUSTOM_BLAS"] = self.options.use_custom_blas
@@ -221,7 +222,7 @@ class CeressolverConan(ConanFile):
         elif is_apple_os(self):
             if Version(self.version) >= "2":
                 self.cpp_info.components["ceres"].frameworks.append("Accelerate")
-        self.cpp_info.components["ceres"].requires = ["eigen::eigen"]
+        self.cpp_info.components["ceres"].requires = ["eigen::eigen", "suitesparse-spqr::suitesparse-spqr"]
         if self.options.use_glog:
             self.cpp_info.components["ceres"].requires.append("glog::glog")
         if self.options.get_safe("use_TBB"):
