@@ -29,7 +29,7 @@ class CeressolverConan(ConanFile):
     options = {
         "shared": [True, False],
         "fPIC": [True, False],
-        "use_glog":  [True, False], #TODO Set to true once gflags with nothreads=False binaries are available. Using MINILOG has a big performance drawback.
+        "use_glog":  [True, False],
         "use_gflags": [True, False, "deprecated"],
         "use_custom_blas": [True, False],
         "use_eigen_sparse": [True, False],
@@ -43,7 +43,7 @@ class CeressolverConan(ConanFile):
     default_options = {
         "shared": False,
         "fPIC": True,
-        "use_glog": False,
+        "use_glog": True, # Using MINILOG has a big performance drawback.
         "use_gflags": "deprecated",
         "use_custom_blas": True,
         "use_eigen_sparse": True,
@@ -106,7 +106,6 @@ class CeressolverConan(ConanFile):
         self.requires("eigen/3.4.0", transitive_headers=True)
         if self.options.use_suitesparse:
             self.requires("suitesparse-spqr/4.3.3")
-        if self.options.use_lapack:
             self.requires("openblas/0.3.26")
         if self.options.use_glog:
             self.requires("glog/0.7.0", transitive_headers=True, transitive_libs=True)
